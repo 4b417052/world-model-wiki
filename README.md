@@ -8,9 +8,9 @@
 
 | 項目 | 連結 |
 |---|---|
-| GitHub repo | `https://github.com/4b417052/world-model-wiki` |
-| Wiki 入口（wiki/index.md） | `https://github.com/4b417052/world-model-wiki/tree/main/wiki` |
-| 簡報（GitHub Pages） | `https://4b417052.github.io/world-model-wiki/slides/` |
+| GitHub repo | `[https://github.com/4b417052/world-model-wiki](https://github.com/4b417052/world-model-wiki)` |
+| Wiki 入口（wiki/index.md） | `[https://github.com/4b417052/world-model-wiki/tree/main/wiki](https://github.com/4b417052/world-model-wiki/tree/main/wiki)` |
+| 簡報（GitHub Pages） | `[https://4b417052.github.io/world-model-wiki/slides/](https://4b417052.github.io/world-model-wiki/slides/)` |
 
 ## 資料夾結構
 
