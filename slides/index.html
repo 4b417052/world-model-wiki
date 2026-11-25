@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>世界模型入門：AI 如何在「腦中」預演世界</title>
+<style>
+  :root{
+    --bg:#f4f1ea; --paper:#fffdf8; --ink:#1d1f24; --muted:#5d6270; --line:#ddd6c8;
+    --accent:#1f4e79; --accent2:#b5532b;
+    --paper-ev:#1e7a4c; --company:#c2611f; --report:#9a7400; --position:#6b3fa0;
+    --survey:#1f6fb2; --analogy:#6b6f78; --synth:#4f6d8a;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+    font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei","Heiti TC",system-ui,sans-serif;}
+  #stage{position:fixed;left:0;right:0;top:0;bottom:64px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+  #deck{flex:none;width:1280px;height:720px;position:relative;transform-origin:center center}
+  .slide{position:absolute;inset:0;background:var(--paper);border:1px solid var(--line);
+    border-radius:14px;box-shadow:0 10px 40px rgba(0,0,0,.08);padding:48px 72px 74px;
+    display:none;flex-direction:column;overflow:hidden}
+  .slide.active{display:flex}
+  .kicker{font-size:15px;letter-spacing:.12em;color:var(--accent2);font-weight:700;margin-bottom:6px}
+  h1{font-size:54px;line-height:1.2;margin:0 0 18px;color:var(--accent)}
+  h2{font-size:34px;line-height:1.25;margin:0 0 18px;color:var(--accent)}
+  h3{font-size:21px;margin:0 0 8px}
+  p,li,td,th{font-size:20px;line-height:1.5}
+  p{margin:0 0 10px}
+  ul{margin:0;padding-left:1.2em} li{margin:5px 0}
+  .lead{font-size:25px;line-height:1.55;margin:0 0 16px}
+  .small{font-size:16px;color:var(--muted)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+  .card p,.card li{font-size:18px}
+  .box{border-left:6px solid #8a8f99;background:#f3f2ef;padding:12px 18px;border-radius:8px}
+  .box p{margin:0}
+  .warn{border-left-color:#c0392b;background:#fdeeee}
+  table{border-collapse:collapse;width:100%}
+  th,td{border-bottom:1px solid var(--line);padding:var(--pad,7px) 10px;text-align:left;vertical-align:top}
+  th{background:#f1ede4;font-size:17px} td{font-size:17px}
+  .term{font-weight:700}
+  .gloss{color:var(--muted);font-size:.85em;font-weight:400}
+  .ev{display:inline-block;font-size:13px;font-weight:700;color:#fff;border-radius:999px;
+    padding:2px 9px;margin:0 3px;vertical-align:middle;white-space:nowrap}
+  .ev.paper{background:var(--paper-ev)} .ev.company{background:var(--company)} .ev.own{box-shadow:inset 0 0 0 2px #fff,0 0 0 2px var(--company)}
+  .ev.report{background:var(--report)} .ev.position{background:var(--position)}
+  .ev.survey{background:var(--survey)} .ev.analogy{background:var(--analogy)}
+  .ev.srcanalogy{background:#fff;color:var(--analogy);border:2px solid var(--analogy);padding:0 8px}
+  .ev.synth{background:var(--synth)}
+  .src{position:absolute;left:72px;right:72px;bottom:16px;font-size:13px;line-height:1.45;color:var(--muted);
+    border-top:1px solid var(--line);padding-top:6px;font-family:ui-monospace,Menlo,Consolas,monospace}
+  .src b{font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;color:var(--ink)}
+  .num{position:absolute;right:28px;top:20px;font-size:14px;color:var(--muted)}
+  .spectrum{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:8px}
+  .spectrum .card{border-top:6px solid var(--accent)}
+  .arrow{height:10px;border-radius:6px;margin:4px 0 4px;
+    background:linear-gradient(90deg,#cfc9bc,#5d6270)}
+  .ends{display:flex;justify-content:space-between;font-size:15px;color:var(--muted)}
+  #ui{position:fixed;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:10px;
+    align-items:center;z-index:10;background:rgba(255,255,255,.95);border:1px solid var(--line);
+    border-radius:999px;padding:5px 10px}
+  #ui button{border:0;background:var(--accent);color:#fff;font-size:16px;border-radius:999px;
+    padding:5px 14px;cursor:pointer} #ui button:disabled{opacity:.35;cursor:default}
+  #count{font-size:15px;color:var(--muted);min-width:64px;text-align:center}
+  #bar{position:fixed;top:0;left:0;height:4px;background:var(--accent2);z-index:10;transition:width .2s}
+  @media print{#ui,#bar{display:none} #stage{display:block;position:static;height:auto} #deck{transform:none!important;width:auto;height:auto} .slide{display:flex!important;position:relative;width:1280px;height:720px;break-after:page}}
+  noscript{display:none}
+</style>
+<noscript><style>.slide{display:flex!important;position:relative;margin:12px auto;width:1280px;height:720px}</style></noscript>
+</head>
+<body>
+<div id="bar"></div>
+<div id="stage"><div id="deck">
+
+<!-- 1 封面 -->
+<section class="slide" data-title="封面">
+  <div class="kicker">給完全沒接觸過的初學者</div>
+  <h1>世界模型入門<br><span style="font-size:36px;color:var(--ink)">AI 如何在「腦中」預演世界</span></h1>
+  <p class="lead"><b>世界模型</b>（World Model）是 AI（人工智慧：讓電腦做出看似有智慧的判斷或行為的技術）研究裡的一個概念（指 AI 內部對「世界如何運作」的模型，第 3 頁詳述）。<br>這份簡報依序介紹：</p>
+  <ol style="font-size:23px;line-height:1.8;margin:0;padding-left:1.4em">
+    <li>什麼是世界模型</li><li>為什麼重要</li><li>核心概念</li><li>例子</li><li>小結</li>
+  </ol>
+  <div class="src"><b>出處：</b>wiki/index.md · wiki/concepts/agent-environment.md（AI 的解釋） · wiki/concepts/world-model.md（世界模型的定義）</div>
+</section>
+
+<!-- 2 證據徽章 -->
+<section class="slide" data-title="怎麼看這份簡報" style="--pad:3px">
+  <div class="kicker">閱讀說明</div>
+  <h2>說法旁邊的「證據徽章」</h2>
+  <p style="font-size:15px;line-height:1.35">這份簡報的內容全部來自一個 Wiki（這份簡報依據的世界模型知識庫），每頁的出處都寫在頁底。同樣是一句話，可信程度不一樣，看到徽章就知道它屬於哪一種證據。徽章跟著 Wiki 的標記走（Wiki 沒標的內容，例如來源中的舉例，就不標）。<b>徽章的範圍：</b><br>
+  ① 放在段落開頭＝整段；接在一句話、列表項目或表格格子後面＝那一句或那一項。<br>
+  ② 接在卡片標題或欄位標題後面＝整張卡片或整欄；放在表格左上角＝整張表；表格「證據」欄的徽章＝同一列的模型。<br>
+  ③ 接在頁面大標題後面＝本頁沒有另外標徽章的說法；句子自己帶徽章時，以它自己的為準。<br>
+  ④ 括號裡的名詞解釋、閱讀提示和頁底出處，不屬於任何徽章。</p>
+  <table>
+    <tr><th style="width:200px">徽章</th><th>意思</th></tr>
+    <tr><td><span class="ev paper">論文實證</span></td><td>來自有實驗數據的研究論文</td></tr>
+    <tr><td><span class="ev company">公司宣稱</span></td><td>公司部落格、報告，或公司對自家成果的自我評價，外界難以獨立驗證</td></tr>
+    <tr><td><span class="ev company own">公司自承</span></td><td>公司自己承認的限制</td></tr>
+    <tr><td><span class="ev report">公司技術報告</span></td><td>公司發表，但附有實驗，而且<b>開放權重</b>（把訓練好的模型公開，任何人都能下載使用；「訓練」是用資料反覆調整模型，讓它表現變好）。本簡報只用於 NVIDIA（美國晶片與 AI 公司）發表的世界模型平台 Cosmos</td></tr>
+    <tr><td><span class="ev position">立場觀點</span></td><td>立場論文（提出主張、沒有做實驗的論文；本簡報指 Yann LeCun（紐約大學與美國科技公司 Meta 的研究者）2022 年的論文）的主張，不是實驗結果</td></tr>
+    <tr><td><span class="ev survey">綜述整理</span></td><td>綜述論文（整理大量研究的文章，本身不做新實驗）的歸納</td></tr>
+    <tr><td><span class="ev srcanalogy">來源比喻</span></td><td>來源作者自己用的比喻或類比，用來說明想法，<b>不是實驗證據</b></td></tr>
+    <tr><td><span class="ev analogy">通用解釋</span></td><td>Wiki 為初學者寫的一般說明或比喻，<b>不是來自特定來源</b></td></tr>
+    <tr><td><span class="ev synth">Wiki 整理</span></td><td>Wiki 自己的歸納或註記：多個來源並排比較的結論，或對來源性質的註記（例如「模型未公開」）</td></tr>
+  </table>
+  <div class="src"><b>出處：</b>wiki/index.md（證據標籤說明） · wiki/concepts/agent-environment.md（開放權重、綜述論文、訓練、NVIDIA、Meta） · wiki/sources/s2-lecun-2022-path-towards-ami.md（立場論文、LeCun 的機構與年份） · wiki/sources/s9-nvidia-cosmos-2025.md（Cosmos）</div>
+</section>
+
+<!-- 3 定義 -->
+<section class="slide" data-title="什麼是世界模型">
+  <div class="kicker">一、什麼是世界模型</div>
+  <h2>世界模型＝AI 腦中的「世界如何運作」</h2>
+  <p class="lead">世界模型是 AI 系統內部的一套模型，用來<b>理解現在的狀態</b>（世界此刻的樣子），並<b>預測接下來會發生什麼</b>，特別是「如果我這樣做，會怎樣」。</p>
+  <div class="grid2">
+    <div class="card"><h3>你腦中也有一個 <span class="ev analogy">通用解釋</span></h3>
+      <p>想到「把杯子推到桌邊，它會掉下去摔破」，你不必真的去推，就知道結果。這就是你腦中的世界模型。</p></div>
+    <div class="card"><h3>棒球打者 <span class="ev srcanalogy">來源比喻</span></h3>
+      <p>打者沒有時間仔細思考，是靠腦中對球路的預測，反射性地揮棒。這是研究者 Ha 與 Schmidhuber 在 2018 年的論文《World Models》中用的類比。</p></div>
+  </div>
+  <p style="margin-top:16px"><span class="ev analogy">通用解釋</span> AI 的世界模型想做同一件事：<b>在行動之前，先在「腦中」模擬結果。</b></p>
+  <div class="src"><b>出處：</b>wiki/concepts/world-model.md · wiki/sources/s1-ha-schmidhuber-2018-world-models.md（作者與年份） · wiki/concepts/agent-environment.md（狀態）</div>
+</section>
+
+<!-- 4 定義爭議 -->
+<section class="slide" data-title="定義仍有爭議">
+  <div class="kicker">一、什麼是世界模型</div>
+  <h2>連研究者對「定義」都還沒有共識 <span class="ev survey">綜述整理</span></h2>
+  <p>大致分成「理解世界」與「預測未來」兩種觀點；LeCun 則主張兩者都要。</p>
+  <table>
+    <tr><th style="width:230px">觀點</th><th>重點</th><th style="width:330px">代表</th></tr>
+    <tr><td class="term">理解世界</td><td>把外面的世界整理成精簡的重點，弄懂它怎麼運作</td><td>Ha 與 Schmidhuber（2018）</td></tr>
+    <tr><td class="term">預測未來</td><td>模擬世界接下來會怎麼變，常用影片呈現</td><td>OpenAI（美國 AI 公司）的 Sora 等影片生成模型</td></tr>
+    <tr><td class="term">兩者都要，還要能幫忙做決定</td><td>除了看懂世界，還要能想像可能的未來，用來做決定</td><td>Yann LeCun（紐約大學與 Meta 的研究者；Meta 是美國科技公司、Facebook 的母公司）</td></tr>
+  </table>
+  <div class="box" style="margin-top:20px"><p>這張分類表出自 2024 年 Ding 等人（清華大學）的一篇<b>綜述論文</b>。</p></div>
+  <div class="src"><b>出處：</b>wiki/concepts/world-model.md · wiki/sources/s8-ding-survey-2024.md · wiki/sources/s1-ha-schmidhuber-2018-world-models.md · wiki/sources/s5-openai-sora-2024.md · wiki/sources/s2-lecun-2022-path-towards-ami.md · wiki/concepts/agent-environment.md（OpenAI、Meta）</div>
+</section>
+
+<!-- 5 為什麼重要 1 -->
+<section class="slide" data-title="為什麼重要（一）">
+  <div class="kicker">二、為什麼重要</div>
+  <h2>為什麼不直接在真實世界裡「試錯」？</h2>
+  <div class="grid2">
+    <div class="card"><h3>人學得很快 <span class="ev position">立場觀點</span></h3>
+      <p>LeCun 認為真實世界的互動既昂貴又危險。他指出：青少年練約 20 小時就會開車；但現有的 AI 系統即使看了大量人類開車的示範、在電腦模擬中試了數百萬次，開車仍遠不如人可靠。</p>
+      <p>他認為差別可能在於：人能學會<b>世界模型</b>。</p></div>
+    <div class="card"><h3>機器在現實試錯可能弄壞東西 <span class="ev report">公司技術報告</span></h3>
+      <p>晶片公司 NVIDIA 指出：「實體 AI」（有感測器、能動手改變世界的 AI，例如機器人、自駕車）在現實中做動作，可能弄壞系統或環境。所以需要一個「世界的數位分身」：在電腦裡、可以安全互動的世界。</p></div>
+  </div>
+  <div class="box" style="margin-top:18px"><p><b>強化學習</b>（Reinforcement Learning）是讓 AI 透過嘗試、拿獎勵（告訴它做得好不好的分數）來學習的方法。</p>
+    <p><span class="ev position">立場觀點</span> LeCun 主張「只靠獎勵不夠」：一個獎勵分數給的資訊很少，所以不用世界模型的強化學習要試非常多次才學得會。</p></div>
+  <div class="src"><b>出處：</b>wiki/sources/s2-lecun-2022-path-towards-ami.md · wiki/concepts/reinforcement-learning.md · wiki/concepts/applications.md（實體 AI） · wiki/sources/s9-nvidia-cosmos-2025.md · wiki/concepts/learning-in-imagination.md · wiki/concepts/agent-environment.md（NVIDIA）</div>
+</section>
+
+<!-- 6 為什麼重要 2 -->
+<section class="slide" data-title="為什麼重要（二）">
+  <div class="kicker">二、為什麼重要</div>
+  <h2>有了世界模型，就能「先想再做」 <span class="ev analogy">通用解釋</span></h2>
+  <p class="small">（規劃：先在腦中想好幾步再行動，第 11 頁會細講。）</p>
+  <div class="grid3">
+    <div class="card"><h3>日常例子 <span class="ev analogy">通用解釋</span></h3>
+      <p>出門前想「搭捷運 30 分鐘要轉車，騎車 20 分鐘但可能下雨」，在腦中比較兩種方案再決定。</p></div>
+    <div class="card"><h3>不給規則也會下棋 <span class="ev paper">論文實證</span></h3>
+      <p>Google DeepMind（Google 的 AI 實驗室，以下簡稱 DeepMind）的 MuZero 是會下棋、玩遊戲的 AI，它自己學出一個模型來規劃。它的前一代、同樣會下棋的 AlphaZero 必須先知道棋規，MuZero 不用，也在圍棋、西洋棋等棋類上追平 AlphaZero，並在 57 款 Atari 遊戲（AI 研究常用的經典電玩測驗）拿到當時最佳成績。</p></div>
+    <div class="card"><h3>無限的練習場 <span class="ev company">公司宣稱</span></h3>
+      <p>DeepMind 認為，世界模型能提供「無限多樣」的模擬環境來訓練 AI 智慧體（會自己做決定的 AI 程式，下一頁介紹），是通往 AGI（通用人工智慧：像人一樣各種任務都能學會的 AI，目前還不存在）的墊腳石。</p></div>
+  </div>
+  <div class="src"><b>出處：</b>wiki/concepts/planning.md · wiki/sources/s3-muzero-2020.md · wiki/concepts/learning-in-imagination.md · wiki/sources/s6-deepmind-genie3-2025.md · wiki/concepts/agent-environment.md（DeepMind、Atari、AGI、智慧體）</div>
+</section>
+
+<!-- 7 術語 -->
+<section class="slide" data-title="新手術語">
+  <div class="kicker">三、核心概念 ── 先認識幾個詞</div>
+  <h2>智慧體在環境裡觀察、行動、拿獎勵</h2>
+  <p class="small" style="margin-bottom:6px">（VizDoom：研究用的 3D 遊戲環境，Ha 與 Schmidhuber 用的任務是躲開怪物射來的火球。64×64 像素：寬 64、高 64 個小色點組成的小畫面。）</p>
+  <table>
+    <tr><th style="width:190px">術語</th><th>白話說明 <span class="ev analogy">通用解釋</span></th><th style="width:330px">在來源中的例子</th></tr>
+    <tr><td class="term">智慧體 <span class="gloss">Agent</span></td><td>會自己做決定的 AI 程式，像玩遊戲的「玩家」</td><td>賽車遊戲裡的駕駛程式</td></tr>
+    <tr><td class="term">環境 <span class="gloss">Environment</span></td><td>智慧體所在的世界，例如一款遊戲</td><td>賽車遊戲、VizDoom、圍棋、Atari</td></tr>
+    <tr><td class="term">狀態 <span class="gloss">State</span></td><td>某一個時刻，世界是什麼樣子</td><td>—</td></tr>
+    <tr><td class="term">觀察 <span class="gloss">Observation</span></td><td>智慧體「看到」的資訊，例如遊戲畫面</td><td>64×64 像素的遊戲畫面</td></tr>
+    <tr><td class="term">行動 <span class="gloss">Action</span></td><td>智慧體可以做的事，例如轉方向盤、下一步棋</td><td>MuZero 的落子</td></tr>
+    <tr><td class="term">獎勵 <span class="gloss">Reward</span></td><td>環境給的分數，告訴它做得好不好</td><td>VizDoom 以存活時間當獎勵</td></tr>
+    <tr><td class="term">策略 <span class="gloss">Policy</span></td><td>「看到什麼就做什麼」的規則</td><td>MuZero：「哪個行動最好？」</td></tr>
+    <tr><td class="term">價值 <span class="gloss">Value</span></td><td>從現在開始，未來預期能拿到多少獎勵</td><td>MuZero：「目前局面有多好？」</td></tr>
+  </table>
+  <div class="src"><b>出處：</b>wiki/concepts/agent-environment.md · wiki/sources/s1-ha-schmidhuber-2018-world-models.md · wiki/sources/s3-muzero-2020.md</div>
+</section>
+
+<!-- 8 有模型無模型 -->
+<section class="slide" data-title="有模型 vs 無模型">
+  <div class="kicker">三、核心概念</div>
+  <h2>強化學習的兩種學法：有模型 vs 無模型</h2>
+  <div class="grid2">
+    <div class="card"><h3>無模型（model-free）</h3>
+      <p><span class="ev analogy">通用解釋</span> 學騎腳踏車時一直騎、一直摔，慢慢記住「這種情況要往左」，但不理解為什麼。</p>
+      <p>不使用學到的模型，直接估計最好的下一步。</p>
+      <p><span class="ev company">公司宣稱</span> DeepMind 官方部落格描述研究背景時指出：在 MuZero 之前，Atari 遊戲的最佳成績都來自這類方法（這不是論文的實驗結果）。</p></div>
+    <div class="card"><h3>有模型（model-based）</h3>
+      <p><span class="ev analogy">通用解釋</span> 先理解「重心偏右，車就往右倒」，再用這個理解推想該怎麼做。</p>
+      <p>先學一個「環境怎麼運作」的模型，再用它來規劃。</p>
+      <p><span class="ev analogy">通用解釋</span> 這裡的「模型」，就是世界模型。</p></div>
+  </div>
+  <div class="box" style="margin-top:18px"><p><span class="ev paper">論文實證</span> Ha 與 Schmidhuber 把智慧體拆成「大的世界模型」和「小的控制器」（負責選擇行動的部分）。世界模型負責理解與預測；控制器只有 867 個參數（參數：神經網路裡可調整的數字），就能把賽車開好。</p>
+    <p class="small" style="margin-top:6px">（神經網路：一種從資料中學習規律的數學模型，是現代 AI 的基本工具。）</p></div>
+  <div class="src"><b>出處：</b>wiki/concepts/reinforcement-learning.md · wiki/concepts/agent-environment.md（控制器、參數） · wiki/sources/s1-ha-schmidhuber-2018-world-models.md · wiki/sources/s3-muzero-2020.md</div>
+</section>
+
+<!-- 9 潛在表示 -->
+<section class="slide" data-title="潛在表示">
+  <div class="kicker">三、核心概念 ① 壓縮</div>
+  <h2>潛在表示：把畫面壓成一小串數字</h2>
+  <div class="grid2">
+    <div>
+      <p><b>潛在表示</b>（latent representation）是把龐大的原始資料（例如一張畫面）壓縮成一小串數字（稱為<b>向量</b>），只留下重要資訊。</p>
+      <p><span class="ev analogy">通用解釋</span> 描述朋友時，你不會念出照片的每個像素（組成畫面的小色點），只說「短髮、戴眼鏡、高個子」。</p>
+      <p><span class="ev paper">論文實證</span> Ha 與 Schmidhuber 把 64×64 像素的遊戲畫面，壓成只有 32 個數字的向量（賽車遊戲；VizDoom 用 64 個）。之後負責預測的部分（記憶模組）和負責選行動的控制器，都以這串數字為輸入（控制器另外還會拿到對未來的預測，見下一頁）。</p>
+    </div>
+    <div class="box warn">
+      <h3>⚠ 別搞混：兩個「潛在」</h3>
+      <p style="font-size:17px;margin-bottom:8px"><b>潛在表示</b>＝壓縮後的向量（本頁講的）。LeCun 的論文用符號 <b>s</b> 代表它。</p>
+      <p style="font-size:17px;margin-bottom:8px"><span class="ev position">立場觀點</span> <b>潛在變數 z</b>（LeCun 論文用的詞）＝<b>光看現在的觀察，無法預測的不確定性</b>。例：車開到岔路口，會往左還是往右？</p>
+      <p style="font-size:17px">小心：Ha 與 Schmidhuber 也用 z 這個符號，但他們的 z 指壓縮向量，屬於<b>潛在表示</b>。</p>
+    </div>
+  </div>
+  <div class="src"><b>出處：</b>wiki/concepts/latent-representation.md · wiki/concepts/agent-environment.md（像素、64×64） · wiki/sources/s1-ha-schmidhuber-2018-world-models.md（記憶模組、控制器的輸入） · wiki/sources/s2-lecun-2022-path-towards-ami.md</div>
+</section>
+
+<!-- 10 預測 -->
+<section class="slide" data-title="預測未來">
+  <div class="kicker">三、核心概念 ② 預測</div>
+  <h2>預測：「如果我這樣做，下一步會怎樣？」</h2>
+  <p>世界模型中負責預測的部分叫<b>動態模型</b>（dynamics model；第 9 頁 Ha 與 Schmidhuber 的記憶模組就是一種動態模型）：輸入「現在的狀態＋要做的行動」，輸出「下一步的狀態」。</p>
+  <div class="grid2">
+    <div class="card"><h3>賽車實驗：預測讓駕駛更穩 <span class="ev paper">論文實證</span></h3>
+      <p>Ha 與 Schmidhuber 的賽車實驗中，控制器同時拿到「對未來的預測」時，平均 906 分，超過 900 分的「解題門檻」（遊戲環境規定的分數，平均達到就算解決了這個任務）；拿掉預測只剩 632 分，開起來也很不穩。</p></div>
+    <div class="card"><h3>未來不只一種 <span class="ev position">立場觀點</span></h3>
+      <p>LeCun 強調世界不是完全可預測的，世界模型要能描述<b>多種</b>可能的未來。</p>
+      <p>細節多的表示只適合短期預測；抽象的表示才能做長期預測，代價是丟掉很多細節。例：接下來幾秒車子會在哪裡，可以準確預測；更長時間的細節受其他車、紅綠燈、行人影響而難以預測，但「大概幾點到目的地」仍然可以。</p></div>
+  </div>
+  <div class="src"><b>出處：</b>wiki/concepts/prediction-dynamics.md · wiki/sources/s1-ha-schmidhuber-2018-world-models.md（900 分門檻） · wiki/concepts/agent-environment.md（解題門檻） · wiki/sources/s2-lecun-2022-path-towards-ami.md</div>
+</section>
+
+<!-- 11 規劃 -->
+<section class="slide" data-title="規劃">
+  <div class="kicker">三、核心概念 ③ 規劃</div>
+  <h2>規劃：在腦中比較幾種做法，挑最好的</h2>
+  <div class="grid2">
+    <div class="card"><h3>LeCun 的兩種模式 <span class="ev position">立場觀點</span></h3>
+      <ul>
+        <li><b>模式一</b>：看到就做，不用世界模型（像快速的直覺）。</li>
+        <li><b>模式二</b>：提出一串行動 → 用世界模型預測結果 → 算出「成本」（代表智慧體有多「不舒服」，越低越好） → 改出成本更低的行動 → 只執行第一步，然後重新規劃。</li>
+      </ul>
+      <p class="small">LeCun 指出，模式二本質上就是最佳控制（研究如何控制機器才能得到最好結果的工程領域）中的「模型預測控制」：每次只做計畫的第一步，再重新預測、重新規劃。差別在於，這裡的世界模型和成本都是學出來的。</p></div>
+    <div class="card"><h3>機器人的規劃實例</h3>
+      <p>Meta 的 V-JEPA 2 是依 LeCun 構想做出的世界模型。</p>
+      <p><span class="ev position">立場觀點</span> 名稱中的 JEPA（聯合嵌入預測架構）是 LeCun 提出的設計：只預測抽象的重點、不畫出畫面（第 13 頁詳細介紹）。</p>
+      <p><span class="ev paper">論文實證</span> 給機械手臂一張「完成後該長怎樣」的目標圖片，模型想像多組動作的結果，挑最接近目標的，執行一步，再重新規劃；長一點的任務則拆成一連串的子目標圖片。</p>
+      <p><span class="ev paper">論文實證</span> 這是<b>零樣本</b>（沒有先在那個新環境收集資料或訓練）。使用子目標圖片時，面對新物體、新環境的抓放任務（抓取物體、再放到指定位置），成功率 <b style="font-size:26px;color:var(--accent)">65%–80%</b>。</p></div>
+  </div>
+  <div class="src"><b>出處：</b>wiki/concepts/planning.md · wiki/sources/s7-meta-vjepa2-2025.md · wiki/concepts/agent-environment.md（最佳控制、零樣本、抓放任務） · wiki/sources/s2-lecun-2022-path-towards-ami.md（成本） · wiki/concepts/generative-vs-latent.md（JEPA）</div>
+</section>
+
+<!-- 12 想像中學習 -->
+<section class="slide" data-title="在想像中學習">
+  <div class="kicker">三、核心概念 ④ 在想像中練習</div>
+  <h2>在「夢」裡練習，再回到現實</h2>
+  <div class="grid2">
+    <div>
+      <p><span class="ev analogy">通用解釋</span> 飛行員先用飛行模擬器練習，再開真的飛機。世界模型就是 AI 自己學出來的模擬器。</p>
+      <p><span class="ev paper">論文實證</span> Ha 與 Schmidhuber 讓智慧體<b>只在</b>世界模型產生的「夢」裡練習 VizDoom 遊戲（躲開怪物射來的火球）。回到真實遊戲後，平均存活約 1,100 步（遊戲每推進一次算一步），超過 750 步的解題門檻。</p>
+      <p><span class="ev paper">論文實證</span> DreamerV3（DeepMind 等團隊提出的方法）也在想像出來的經驗中學習。它用同一組設定、不必為每個任務重新調整，解了 150 多個任務，還在 Minecraft（開放世界的方塊建造遊戲）從零挖到鑽石。</p>
+    </div>
+    <div class="card"><h3>⚠ 夢有漏洞，智慧體會鑽 <span class="ev paper">論文實證</span></h3>
+      <table>
+        <tr><th>設定</th><th>夢中分數</th><th>現實分數</th></tr>
+        <tr><td>溫度 0.10（夢較確定）</td><td>2,086</td><td><b style="color:#c0392b">193</b></td></tr>
+        <tr><td>溫度 1.15（夢較不確定）</td><td>918</td><td><b style="color:var(--paper-ev)">1,092</b></td></tr>
+      </table>
+      <p class="small" style="margin-top:8px">VizDoom 以存活時間當獎勵，分數就是存活的步數；不同的溫度設定，結果不同。「溫度」控制夢有多不確定。溫度低、夢較確定時，智慧體會找到只在夢裡有效的取巧方法；加入不確定性，反而學到更穩健的策略；但溫度太高又學不起來。</p></div>
+  </div>
+  <div class="src"><b>出處：</b>wiki/concepts/learning-in-imagination.md · wiki/sources/s1-ha-schmidhuber-2018-world-models.md · wiki/sources/s4-dreamerv3.md · wiki/concepts/agent-environment.md（步、VizDoom、Minecraft）</div>
+</section>
+
+<!-- 13 光譜 -->
+<section class="slide" data-title="兩條路線：光譜">
+  <div class="kicker">三、核心概念 ★ 重點對比</div>
+  <h2>兩條路線：要不要把未來「畫出來」？ <span class="ev synth">Wiki 整理</span></h2>
+  <div class="arrow"></div>
+  <div class="ends"><span>◀ 把畫面完整畫出來</span><span>只預測抽象表示或決策需要的數字 ▶</span></div>
+  <div class="spectrum">
+    <div class="card" style="border-top-color:#cfc9bc"><h3>A. 像素生成式</h3>
+      <p>直接產生未來的影片畫面</p>
+      <p class="small">OpenAI 的 Sora <span class="ev company">公司宣稱</span><br>DeepMind 的 Genie 3（可即時操作的生成世界） <span class="ev company">公司宣稱</span><br>NVIDIA 的 Cosmos（給實體 AI 用的影片世界模型平台，例如機器人、自駕車） <span class="ev report">公司技術報告</span></p></div>
+    <div class="card" style="border-top-color:#a29b8d"><h3>B. 中間位置</h3>
+      <p>在壓縮後的向量裡預測，但訓練時仍會把向量還原成畫面</p>
+      <p class="small">Ha 與 Schmidhuber 的 World Models <span class="ev paper">論文實證</span><br>DreamerV3 <span class="ev paper">論文實證</span></p></div>
+    <div class="card" style="border-top-color:#5d6270"><h3>C. 非生成式</h3>
+      <p>完全不畫畫面，只預測抽象表示，或只預測做決策需要的數字</p>
+      <p class="small"><b>JEPA</b>（聯合嵌入預測架構，LeCun 提出；嵌入 embedding＝壓縮後的向量，是潛在表示，見第 9 頁）：把「過去」和「未來」都轉成抽象表示（在潛在空間，也就是這些壓縮數字所在的空間裡），從過去的表示預測未來的表示 <span class="ev position">立場觀點</span><br>V-JEPA 2 <span class="ev paper">論文實證</span>　MuZero <span class="ev paper">論文實證</span></p></div>
+  </div>
+  <p style="margin-top:12px"><span class="ev srcanalogy">來源比喻</span> DeepMind 介紹 MuZero 時說：知道雨傘能讓你不淋濕，比模擬雨滴的軌跡更有用。</p>
+  <p><span class="ev analogy">通用解釋</span> A 像在腦中播一段每滴雨怎麼落的影片；C 像只記「會下雨、要帶傘」。</p>
+  <div class="src"><b>出處：</b>wiki/concepts/generative-vs-latent.md · wiki/concepts/interactive-world-model.md · wiki/concepts/latent-representation.md · wiki/sources/s9-nvidia-cosmos-2025.md · wiki/sources/s1-ha-schmidhuber-2018-world-models.md · wiki/sources/s2-lecun-2022-path-towards-ami.md · wiki/sources/s3-muzero-2020.md · wiki/sources/s4-dreamerv3.md · wiki/sources/s5-openai-sora-2024.md · wiki/sources/s6-deepmind-genie3-2025.md · wiki/sources/s7-meta-vjepa2-2025.md</div>
+</section>
+
+<!-- 14 對照表 -->
+<section class="slide" data-title="兩條路線：對照">
+  <div class="kicker">三、核心概念 ★ 重點對比</div>
+  <h2>生成式 vs 非生成式：各有主張、各有問題</h2>
+  <table>
+    <tr><th style="width:160px"><span class="ev synth">Wiki 整理</span></th><th>A. 像素生成式</th><th>C. 非生成式</th></tr>
+    <tr><td class="term">預測什麼</td><td>未來的畫面（像素）</td><td>未來的抽象表示，或決策需要的數字</td></tr>
+    <tr><td class="term">支持者說的好處</td>
+      <td>能產生可以看、可以互動的世界來訓練智慧體 <span class="ev company">公司宣稱</span><br>可當實體 AI 的安全模擬環境 <span class="ev report">公司技術報告</span></td>
+      <td>忽略無關細節，預測才可行 <span class="ev position">立場觀點</span><br>先看超過 100 萬小時影片，再只用不到 62 小時的機器人資料，就能規劃 <span class="ev paper">論文實證</span></td></tr>
+    <tr><td class="term">已知問題</td>
+      <td>Sora：玻璃碎裂等基本物理不準、長影片不連貫 <span class="ev company own">公司自承</span><br>Genie 3：只能連續互動數分鐘，不是數小時 <span class="ev company own">公司自承</span></td>
+      <td>V-JEPA 2：只在單一時間尺度預測（時間尺度＝預測涵蓋的時間長短），但很多任務需要跨尺度的規劃；在物理推理測驗（例如 IntPhys 2：判斷影片有沒有違反物理）上明顯不如人類 <span class="ev paper">論文實證</span></td></tr>
+    <tr><td class="term">能給人看嗎</td><td>能，輸出就是影片</td><td>不能。LeCun 說用 JEPA 就「失去了產生輸出的能力」，換來描述多種可能性的能力 <span class="ev position">立場觀點</span></td></tr>
+    <tr><td class="term">證據多半來自</td><td>公司報告與部落格（Sora、Genie 3 外界無法獨立驗證；Cosmos 開放權重）</td><td>研究論文，加上 LeCun 的立場論文（只提主張、沒有實驗）</td></tr>
+  </table>
+  <div class="src"><b>出處：</b>wiki/concepts/generative-vs-latent.md · wiki/concepts/agent-environment.md（時間尺度） · wiki/concepts/applications.md（實體 AI） · wiki/sources/s7-meta-vjepa2-2025.md（物理推理測驗） · wiki/concepts/limitations.md（單一時間尺度的缺點） · wiki/sources/s5-openai-sora-2024.md · wiki/sources/s6-deepmind-genie3-2025.md · wiki/sources/s2-lecun-2022-path-towards-ami.md · wiki/sources/s9-nvidia-cosmos-2025.md</div>
+</section>
+
+<!-- 15 常見誤解 -->
+<section class="slide" data-title="常見誤解">
+  <div class="kicker">三、核心概念</div>
+  <h2>常見誤解：會生成逼真影片 ≠ 懂物理 <span class="ev synth">Wiki 整理</span></h2>
+  <div class="grid3">
+    <div class="card"><h3>OpenAI 自己承認 <span class="ev company own">公司自承</span></h3>
+      <p>Sora 的報告說，玻璃碎裂等很多基本互動的物理模擬不準確，物體還會憑空出現。</p></div>
+    <div class="card"><h3>另一個團隊的測試 <span class="ev paper">論文實證</span></h3>
+      <p>Meta 團隊所做的 IntPhys 2 測驗（判斷影片有沒有違反物理）中，目前的影片模型表現接近<b>亂猜</b>；人類在相關測驗上有 85%–95%。</p><p class="small">注意：Meta 屬於非生成式路線，不是中立的第三方。 <span class="ev synth">Wiki 整理</span></p></div>
+    <div class="card"><h3>綜述論文的保留 <span class="ev survey">綜述整理</span></h3>
+      <p>綜述論文指出，這類影片模型是否真的算得上完整的世界模型，仍有疑問。</p></div>
+  </div>
+  <h3 style="margin-top:16px">路線之爭：LeCun 為什麼反對生成式</h3>
+  <div class="box" style="margin-top:8px"><p><span class="ev position">立場觀點</span> LeCun 明確反對生成式架構。他的理由是：生成式潛在變數模型（帶有 z 的生成式模型；z 代表不確定性，見第 9 頁）不會產生抽象表示（第 13 頁）。所以除了把細節塞進 z 之外，沒辦法把無關的細節去掉。他寫道：「這就是我們反對使用生成式架構的原因」。</p>
+    <p style="margin-top:6px"><span class="ev position">立場觀點</span> 他的另一個理由是：地毯紋理、風中樹葉、池塘漣漪這類細節，「基本上是不可能」逐像素準確預測的，至少長時間不行。</p></div>
+  <div class="src"><b>出處：</b>wiki/concepts/generative-vs-latent.md · wiki/concepts/video-world-simulator.md · wiki/concepts/limitations.md · wiki/sources/s2-lecun-2022-path-towards-ami.md · wiki/sources/s7-meta-vjepa2-2025.md · wiki/sources/s5-openai-sora-2024.md · wiki/sources/s8-ding-survey-2024.md</div>
+</section>
+
+<!-- 16 代表模型 -->
+<section class="slide" data-title="代表模型" style="--pad:5px">
+  <div class="kicker">四、例子</div>
+  <h2>七個代表模型</h2>
+  <table>
+    <tr><th style="width:190px">模型（首次公開年）</th><th style="width:190px">機構</th><th>一句話</th><th style="width:250px">證據</th></tr>
+    <tr><td class="term">World Models（2018）</td><td>Google Brain（Google 過去的 AI 研究團隊）等</td><td>在自己的「夢」裡練習，再回到真實遊戲</td><td><span class="ev paper">論文實證</span></td></tr>
+    <tr><td class="term">MuZero（2019）</td><td>DeepMind</td><td>不知道規則也能規劃，只預測決策需要的數字</td><td><span class="ev paper">論文實證</span></td></tr>
+    <tr><td class="term">DreamerV3（2023）</td><td>DeepMind 等</td><td>同一組設定解 150 多個任務，在 Minecraft 挖到鑽石</td><td><span class="ev paper">論文實證</span></td></tr>
+    <tr><td class="term">Sora（2024）</td><td>OpenAI</td><td>OpenAI 主張持續放大影片生成模型，是通往通用物理世界模擬器的一條有希望的路 <span class="ev company">公司宣稱</span>；報告不含模型細節 <span class="ev synth">Wiki 整理</span></td><td><span class="ev company">公司宣稱</span></td></tr>
+    <tr><td class="term">Genie 3（2025）</td><td>DeepMind</td><td>輸入文字，產生可即時操作的世界，每秒 24 影格（影格＝一張畫面），世界的一致性（前後保持一致、不自相矛盾）可維持數分鐘 <span class="ev company">公司宣稱</span>；模型未公開 <span class="ev synth">Wiki 整理</span></td><td><span class="ev company">公司宣稱</span></td></tr>
+    <tr><td class="term">V-JEPA 2（2025）</td><td>Meta 等</td><td>非生成式；看影片學習，機械手臂零樣本抓放</td><td><span class="ev paper">論文實證</span></td></tr>
+    <tr><td class="term">Cosmos（2025）</td><td>NVIDIA</td><td>給實體 AI 用的世界模型平台（應用範例有機器人、自駕車），開放權重（模型公開，可下載使用）</td><td><span class="ev report">公司技術報告</span></td></tr>
+  </table>
+  <div class="src"><b>出處：</b>wiki/sources/s1-ha-schmidhuber-2018-world-models.md · wiki/sources/s3-muzero-2020.md · wiki/sources/s4-dreamerv3.md · wiki/sources/s5-openai-sora-2024.md · wiki/sources/s6-deepmind-genie3-2025.md · wiki/sources/s7-meta-vjepa2-2025.md · wiki/sources/s9-nvidia-cosmos-2025.md · wiki/concepts/agent-environment.md（機構、影格、開放權重、一致性） · wiki/concepts/video-world-simulator.md（世界模擬器） · wiki/concepts/limitations.md（證據品質） · wiki/concepts/generative-vs-latent.md（非生成式）</div>
+</section>
+
+<!-- 17 應用 -->
+<section class="slide" data-title="應用">
+  <div class="kicker">四、例子</div>
+  <h2>世界模型用在哪裡？</h2>
+  <div class="grid2">
+    <div class="card"><h3>遊戲與智慧體訓練 <span class="ev paper">論文實證</span></h3>
+      <p>賽車、VizDoom、圍棋與西洋棋等棋類、Atari、Minecraft 都有實驗成果。</p></div>
+    <div class="card"><h3>機器人</h3>
+      <p>V-JEPA 2 在機械手臂上做抓放 <span class="ev paper">論文實證</span></p>
+      <p>綜述論文也列出導航、任務規劃等用途 <span class="ev survey">綜述整理</span></p></div>
+    <div class="card"><h3>自動駕駛</h3>
+      <p>即時感知路況，並預測交通會怎麼變 <span class="ev survey">綜述整理</span></p>
+      <p>NVIDIA 的 Cosmos 也以自駕場景為範例 <span class="ev report">公司技術報告</span></p></div>
+    <div class="card"><h3>實體 AI 的安全訓練場 <span class="ev report">公司技術報告</span></h3>
+      <p>先在「世界的數位分身」裡練習，避免在現實中試錯造成損壞。</p></div>
+  </div>
+  <p class="small" style="margin-top:12px"><span class="ev synth">Wiki 整理</span> 提醒：目前<b>有實驗數據支持</b>的，主要是遊戲和機器人抓放。自動駕駛的用途來自綜述的整理，加上 NVIDIA 的應用範例（公司技術報告，不是實際上路的實驗）；「在模擬環境中訓練智慧體，是通往 AGI 的墊腳石」等說法屬於公司願景。</p>
+  <div class="src"><b>出處：</b>wiki/concepts/applications.md · wiki/sources/s9-nvidia-cosmos-2025.md（NVIDIA） · wiki/sources/s1-ha-schmidhuber-2018-world-models.md · wiki/sources/s3-muzero-2020.md · wiki/sources/s4-dreamerv3.md · wiki/sources/s7-meta-vjepa2-2025.md · wiki/sources/s8-ding-survey-2024.md · wiki/sources/s6-deepmind-genie3-2025.md</div>
+</section>
+
+<!-- 18 限制 -->
+<section class="slide" data-title="限制">
+  <div class="kicker">四、例子 ── 還做不到的事</div>
+  <h2>世界模型還很不完美</h2>
+  <div class="grid2">
+    <ul>
+      <li><b>會被鑽漏洞</b>：World Models 的實驗中，夢中 2,086 分的策略，到現實只剩 193 分 <span class="ev paper">論文實證</span></li>
+      <li><b>物理常常不對</b>：Sora 自己承認玻璃碎裂不準、物體憑空出現 <span class="ev company own">公司自承</span></li>
+      <li><b>只能維持短時間</b>：Genie 3 只能連續互動數分鐘 <span class="ev company own">公司自承</span></li>
+      <li><b>和人類有差距</b>：在 IntPhys 2 等物理推理測驗上，人類 85%–95%，模型明顯落後 <span class="ev paper">論文實證</span></li>
+    </ul>
+    <ul>
+      <li><b>定義沒有共識</b>：「理解世界」與「預測未來」兩派 <span class="ev survey">綜述整理</span></li>
+      <li><b>藍圖未完成</b>：LeCun 自己承認，他設想的「階層式 JEPA」（多層 JEPA 疊起來，上層做長期預測）能否從影片訓練起來，還不知道 <span class="ev position">立場觀點</span></li>
+      <li><b>證據品質不一</b>：Sora 不公開模型細節、Genie 3 未公開，外界無法驗證 <span class="ev synth">Wiki 整理</span></li>
+    </ul>
+  </div>
+  <div class="src"><b>出處：</b>wiki/concepts/limitations.md · wiki/sources/s2-lecun-2022-path-towards-ami.md（階層式 JEPA） · wiki/sources/s7-meta-vjepa2-2025.md（IntPhys 2） · wiki/sources/s1-ha-schmidhuber-2018-world-models.md · wiki/sources/s5-openai-sora-2024.md · wiki/sources/s6-deepmind-genie3-2025.md · wiki/sources/s8-ding-survey-2024.md</div>
+</section>
+
+<!-- 19 小結 -->
+<section class="slide" data-title="小結">
+  <div class="kicker">五、小結</div>
+  <h2>三句話帶走</h2>
+  <ol style="font-size:24px;line-height:1.7;padding-left:1.3em;margin:0 0 18px">
+    <li><b>世界模型</b>通常用來<b>壓縮、預測</b>，再拿來<b>規劃</b>或<b>在想像中練習</b>。 <span class="ev synth">Wiki 整理</span></li>
+    <li>主要差別在「預測什麼」：<b>把未來的畫面畫出來</b>（生成式），或<b>只預測抽象表示或做決策需要的數字</b>（非生成式）；中間還有「在壓縮向量裡預測、訓練時仍會還原畫面」的做法（第 13 頁）。 <span class="ev synth">Wiki 整理</span></li>
+    <li>閱讀或引用這些研究時，先分清楚是<b>論文實證</b>、<b>公司宣稱</b>，還是<b>立場觀點</b>。會生成逼真影片，不等於懂物理。 <span class="ev synth">Wiki 整理</span></li>
+  </ol>
+  <p class="small">想深入了解：從 wiki/index.md 的建議閱讀順序開始，每一頁都能追溯到原始來源。</p>
+  <div class="src"><b>出處：</b>wiki/concepts/world-model.md · wiki/concepts/generative-vs-latent.md · wiki/concepts/limitations.md · wiki/index.md</div>
+</section>
+
+</div></div>
+
+<div id="ui">
+  <button id="prev" aria-label="上一頁">◀</button>
+  <span id="count"></span>
+  <button id="next" aria-label="下一頁">▶</button>
+</div>
+
+<script>
+(function(){
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+  var deck = document.getElementById('deck');
+  var stage = document.getElementById('stage');
+  var cur = 0;
+  slides.forEach(function(s,i){
+    var n = document.createElement('div'); n.className='num';
+    n.textContent = (i+1) + ' / ' + slides.length; s.appendChild(n);
+  });
+  function fromHash(){
+    var m = /^#(\d+)$/.exec(location.hash); if(!m) return 0;
+    var k = parseInt(m[1],10)-1; return (k>=0 && k<slides.length) ? k : 0;
+  }
+  function show(i){
+    cur = Math.max(0, Math.min(slides.length-1, i));
+    slides.forEach(function(s,j){ s.classList.toggle('active', j===cur); });
+    document.getElementById('count').textContent = (cur+1) + ' / ' + slides.length;
+    document.getElementById('prev').disabled = cur===0;
+    document.getElementById('next').disabled = cur===slides.length-1;
+    document.getElementById('bar').style.width = ((cur+1)/slides.length*100) + '%';
+    if(location.hash !== '#'+(cur+1)) history.replaceState(null,'','#'+(cur+1));
+  }
+  function fit(){
+    var s = Math.min(stage.clientWidth/1310, stage.clientHeight/740);
+    deck.style.transform = 'scale(' + s + ')';
+  }
+  document.getElementById('prev').onclick = function(){ show(cur-1); };
+  document.getElementById('next').onclick = function(){ show(cur+1); };
+  document.addEventListener('keydown', function(e){
+    if(e.key==='ArrowRight'||e.key==='PageDown'||e.key===' '){ e.preventDefault(); show(cur+1); }
+    else if(e.key==='ArrowLeft'||e.key==='PageUp'){ e.preventDefault(); show(cur-1); }
+    else if(e.key==='Home'){ show(0); } else if(e.key==='End'){ show(slides.length-1); }
+  });
+  var tx=null;
+  document.addEventListener('touchstart',function(e){ tx=e.touches[0].clientX; },{passive:true});
+  document.addEventListener('touchend',function(e){
+    if(tx===null) return; var dx=e.changedTouches[0].clientX-tx;
+    if(Math.abs(dx)>50) show(cur + (dx<0?1:-1)); tx=null;
+  });
+  window.addEventListener('hashchange', function(){ show(fromHash()); });
+  window.addEventListener('resize', fit);
+  fit(); show(fromHash());
+})();
+</script>
+</body>
+</html>
